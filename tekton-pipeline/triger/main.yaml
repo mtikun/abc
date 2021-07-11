@@ -1,0 +1,90 @@
+# my-trigger.yaml
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerTemplate
+metadata:
+  name: build-deploy-pipeline-template
+spec:
+  # Trigger Bindingが変換してくれたパラメータを利用可能
+  # PipelineRunに引き渡すパラメータを指定
+  params:
+    - name: pathToContext
+    - name: pathToYamlFile
+    - name: imageUrl
+    - name: imageTag
+    - name: revision
+    - name: url
+  resourcetemplates:
+    # 見覚えのあるPipelineRunの定義
+    - apiVersion: tekton.dev/v1beta1
+      kind: PipelineRun
+      metadata:
+        # PipelineRunの名前を自動生成するために`build-deploy-pipeline-run-`をランダムのIDにしてくれる
+        generateName: build-deploy-pipeline-run-
+      spec:
+        pipelineRef:
+          name: application-pipeline
+        params: 
+          # `tt` = `trigger template`の略
+          - name: pathToContext
+            value: $(tt.params.pathToContext)
+          - name: pathToYamlFile
+            value: $(tt.params.pathToYamlFile)
+          - name: imageUrl
+            value: $(tt.params.imageUrl)
+          - name: imageTag
+            value: $(tt.params.imageTag)
+        resources:
+        - name: git-source
+          resourceSpec:
+            type: git
+            params:
+            - name: revision
+              value: $(tt.params.revision)
+            - name: url
+              value: $(tt.params.url)
+        serviceAccountName: service-account
+        workspaces: 
+          - name: shared-workspace
+            volumeClaimTemplate:
+              spec:
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: 1Gi
+          - name: kubeconfig-dir
+            emptyDir: {}
+---
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerBinding
+metadata:
+  name: build-deploy-pipeline-binding
+spec:
+  params:
+    # httpリクエストのパラメータをTekton内部の変数に変換
+    - name: revision
+      value: $(body.head_commit.id)
+    - name: url
+      value: $(body.repository.url)
+    - name: pathToContext
+      value: $(body.filepath.context)
+    - name: pathToYamlFile
+      value: $(body.yamlpath.yaml)
+    - name: imageUrl
+      value: $(body.myimage.url)
+    - name: imageTag
+      value: $(body.ourimage.tag)
+
+
+---
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: EventListener
+metadata:
+  name: build-deploy-pipeline-listener
+spec:
+  serviceAccountName: tekton-triggers-example-sa
+  triggers:
+    - bindings:
+        - ref: build-deploy-pipeline-binding
+      template:
+        ref: build-deploy-pipeline-template

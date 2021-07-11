@@ -1,0 +1,80 @@
+# trigger-sa.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: trigger-sa
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: trigger-role
+rules:
+- apiGroups:
+  - triggers.tekton.dev
+  resources:
+  - eventlisteners
+  - triggers
+  - triggerbindings
+  - triggertemplates
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - tekton.dev
+  resources:
+  - pipelineruns
+  - pipelineresources
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - secrets   ## 追加！
+  verbs:
+  - get
+  - list
+  - watch
+---
+## 追加：今回はなくても問題ないが、エラーがでると気になるので権限付与
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: tekton-clustertriggerbindings-view
+rules:
+- apiGroups:
+  - triggers.tekton.dev
+  resources:
+  - clustertriggerbindings
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: triggers-role-binding
+subjects:
+  - kind: ServiceAccount
+    name: trigger-sa
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: trigger-role
+---
+## 追加
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: triggers-clusterrole-binding
+subjects:
+  - kind: ServiceAccount
+    name: trigger-sa
+    namespace: goldstine-lab
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tekton-clustertriggerbindings-view
+interceptorの追加

@@ -33,8 +33,7 @@ spec:
       image: lachlanevenson/k8s-kubectl
       command: ["kubectl"]
       args:
-        - "get"
-        - "node"
-        
-        
+        - "apply"
+        - "-f"
+        - "$(inputs.resources.git-source.path)/$(inputs.params.pathToContext)/$(inputs.params.pathToYamlFile)"
 
